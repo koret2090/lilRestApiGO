@@ -26,6 +26,7 @@ func main() {
 	fmt.Println("Server is started")
 
 	http.HandleFunc("/", GetAllPersons)
+
 	http.HandleFunc("/insert", AddPerson)
 	http.HandleFunc("/update", UpdatePerson)
 	http.HandleFunc("/delete", DeletePerson)
@@ -55,7 +56,40 @@ func GetAllPersons(w http.ResponseWriter, r *http.Request) {
 	db := OpenConnection()
 	defer db.Close()
 
-	rows, err := db.Query("select * from person")
+	var rows *sql.Rows
+	var err error
+	if id := r.URL.Query().Get("id"); id != "" {
+		rows, err = db.Query("select * from person where id = $1", id)
+	} else {
+		rows, err = db.Query("select * from person")
+	}
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rows.Close()
+
+	var persons []Person
+
+	for rows.Next() {
+		var person Person
+		rows.Scan(&person.Id, &person.Name, &person.Nickname)
+		persons = append(persons, person)
+	}
+	personsBytes, err := json.MarshalIndent(persons, "", "\t")
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(personsBytes)
+
+}
+
+func GetPerson(w http.ResponseWriter, r *http.Request) {
+	db := OpenConnection()
+	defer db.Close()
+
+	id := r.URL.Query().Get("id")
+
+	rows, err := db.Query("select * from person where id = $1", id)
 	if err != nil {
 		log.Fatal(err)
 	}
